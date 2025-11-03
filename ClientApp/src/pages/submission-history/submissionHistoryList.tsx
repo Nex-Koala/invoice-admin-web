@@ -16,8 +16,8 @@ const SubmissionHistoryList: React.FC = () => {
   const navigate = useNavigate();
 
   const fetchInvoiceDocuments = async (params: {
-    current: number;
-    pageSize: number;
+    current?: number;
+    pageSize?: number;
     issueDateFrom?: string;
     issueDateTo?: string;
     uuid?: string;
@@ -279,7 +279,7 @@ const SubmissionHistoryList: React.FC = () => {
 
   return (
     <>
-      <ProTable<API.InvoiceDocument>
+      <ProTable<API.InvoiceDocument, API.InvoiceDocument>
         columns={columns}
         request={async (params) => {
           const response = await fetchInvoiceDocuments(params);

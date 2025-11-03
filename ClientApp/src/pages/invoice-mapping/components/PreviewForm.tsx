@@ -10,11 +10,8 @@ import ProForm, {
 import { Form, Select, Table, Input, Col, Row, Divider, message } from 'antd';
 import { getCountryCodeOptions } from '@/helpers/countryCodeConverter';
 import { getInvoiceTypeOptions, normalizeDate } from '../utils/invoiceHelperFunctions';
-import { getUoms } from '@/services/ant-design-pro/uomService';
-import { getClassifications } from '@/services/ant-design-pro/classificationService';
-import { getMsicCodes, getStateCodes } from '@/services/ant-design-pro/invoiceService';
 import { ProCard } from '@ant-design/pro-components';
-import { getSuppliers } from '@/services/ant-design-pro/supplierService';
+import { useOptionsModel } from '@/models/useOptionsModel';
 
 type PreviewFormProps = {
     isOpen: boolean;
@@ -29,53 +26,21 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
     onCancel,
     onFinish,
 }) => {
-    const [classificationOptions, setClassificationOptions] = useState([]);
-    const [uomOptions, setUomOptions] = useState([]);
-    const [msicOptions, setMsicOptions] = useState<API.MSICOption[]>([]);
-    const [stateOptions, setStateOptions] = useState<API.StateOption[]>([]);
-    const [supplierOptions, setSupplierOptions] = useState<API.DocumentSupplier[]>([])
     const [loading, setLoading] = useState<boolean>(false);
     const [form] = Form.useForm();
     const [errorCards, setErrorCards] = useState<number[]>([]);
-
-    const fetchAllOptions = async () => {
-        setLoading(true);
-        try {
-            const [
-                classificationResponse,
-                uomResponse,
-                msicRes,
-                stateRes,
-                supplierRes,
-            ] = await Promise.all([
-                getClassifications({}),
-                getUoms({}),
-                getMsicCodes(),
-                getStateCodes(),
-                getSuppliers(),
-            ]);
-
-            setClassificationOptions(
-                classificationResponse?.data?.data?.map(({ code, description }: API.LocalClassification) => ({
-                    value: code,
-                    label: `${code} - ${description}`,
-                })) ?? []
-            );
-            setUomOptions(
-                uomResponse?.data?.data?.map(({ code, description }: API.SellerUOM) => ({
-                    value: code,
-                    label: `${code} - ${description}`,
-                })) ?? []
-            );
-            setMsicOptions(msicRes.data.data ?? []);
-            setStateOptions(stateRes.data.data ?? []);
-            setSupplierOptions(supplierRes.data.data ?? []);
-        } catch (e) {
-            message.error('Failed to load options data');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const {
+        classificationOptions,
+        uomOptions,
+        msicOptions,
+        stateOptions,
+        supplierOptions,
+        fetchClassifications,
+        fetchUoms,
+        fetchMsic,
+        fetchStates,
+        fetchSuppliers
+    } = useOptionsModel();
 
     const getMsicSelectOptions = () =>
         msicOptions.map((option) => ({
@@ -90,9 +55,11 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
         }));
 
     useEffect(() => {
-        if (!classificationOptions.length || !uomOptions.length || !msicOptions.length || !stateOptions.length || !supplierOptions.length) {
-            fetchAllOptions();
-        }
+        fetchClassifications();
+        fetchUoms();
+        fetchMsic();
+        fetchStates();
+        fetchSuppliers();
     }, []);
 
     useEffect(() => {
