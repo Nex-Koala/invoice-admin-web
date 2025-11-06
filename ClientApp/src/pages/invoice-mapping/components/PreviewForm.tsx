@@ -10,7 +10,7 @@ import ProForm, {
 import { Form, Select, Table, Input, Col, Row, Divider, message, Button } from 'antd';
 import { getCountryCodeOptions } from '@/helpers/countryCodeConverter';
 import { getInvoiceTypeOptions, normalizeDate } from '../utils/invoiceHelperFunctions';
-import { ProCard } from '@ant-design/pro-components';
+import { ProCard, ProTable } from '@ant-design/pro-components';
 import useOptionsModel from '@/models/options';
 import { DeleteOutlined } from '@ant-design/icons';
 import { useModel } from '@umijs/max';
@@ -757,12 +757,14 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
 
                                                     return (
                                                         <>
-                                                            <Table
+                                                            <ProTable
                                                                 size="middle"
                                                                 rowKey="key"
                                                                 columns={columns}
                                                                 dataSource={itemFields.map((_, index) => ({ key: index }))}
                                                                 pagination={false}
+                                                                toolBarRender={false}
+                                                                search={false}
                                                                 bordered
                                                                 scroll={{ x: 'max-content' }}
                                                             />
