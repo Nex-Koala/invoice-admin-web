@@ -7,20 +7,20 @@ import ProForm, {
     ProFormDatePicker,
     DrawerForm,
 } from '@ant-design/pro-form';
-import { Form, Select, Table, Input, Col, Row, Divider, message } from 'antd';
+import { Form, Select, Table, Input, Col, Row, Divider, message, Button } from 'antd';
 import { getCountryCodeOptions } from '@/helpers/countryCodeConverter';
 import { getInvoiceTypeOptions, normalizeDate } from '../utils/invoiceHelperFunctions';
-import { getUoms } from '@/services/ant-design-pro/uomService';
-import { getClassifications } from '@/services/ant-design-pro/classificationService';
-import { getMsicCodes, getStateCodes } from '@/services/ant-design-pro/invoiceService';
 import { ProCard } from '@ant-design/pro-components';
-import { getSuppliers } from '@/services/ant-design-pro/supplierService';
+import useOptionsModel from '@/models/options';
+import { DeleteOutlined } from '@ant-design/icons';
+import { useModel } from '@umijs/max';
 
 type PreviewFormProps = {
     isOpen: boolean;
     submitInvoiceRequests: API.SubmitInvoiceRequest[];
     onCancel: () => void;
     onFinish: (data: API.SubmitInvoiceRequest[]) => Promise<void>;
+    manual?: boolean;
 };
 
 const PreviewForm: React.FC<PreviewFormProps> = ({
@@ -28,54 +28,25 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
     submitInvoiceRequests,
     onCancel,
     onFinish,
+    manual = false,
 }) => {
-    const [classificationOptions, setClassificationOptions] = useState([]);
-    const [uomOptions, setUomOptions] = useState([]);
-    const [msicOptions, setMsicOptions] = useState<API.MSICOption[]>([]);
-    const [stateOptions, setStateOptions] = useState<API.StateOption[]>([]);
-    const [supplierOptions, setSupplierOptions] = useState<API.DocumentSupplier[]>([])
     const [loading, setLoading] = useState<boolean>(false);
     const [form] = Form.useForm();
     const [errorCards, setErrorCards] = useState<number[]>([]);
-
-    const fetchAllOptions = async () => {
-        setLoading(true);
-        try {
-            const [
-                classificationResponse,
-                uomResponse,
-                msicRes,
-                stateRes,
-                supplierRes,
-            ] = await Promise.all([
-                getClassifications({}),
-                getUoms({}),
-                getMsicCodes(),
-                getStateCodes(),
-                getSuppliers(),
-            ]);
-
-            setClassificationOptions(
-                classificationResponse?.data?.data?.map(({ code, description }: API.LocalClassification) => ({
-                    value: code,
-                    label: `${code} - ${description}`,
-                })) ?? []
-            );
-            setUomOptions(
-                uomResponse?.data?.data?.map(({ code, description }: API.SellerUOM) => ({
-                    value: code,
-                    label: `${code} - ${description}`,
-                })) ?? []
-            );
-            setMsicOptions(msicRes.data.data ?? []);
-            setStateOptions(stateRes.data.data ?? []);
-            setSupplierOptions(supplierRes.data.data ?? []);
-        } catch (e) {
-            message.error('Failed to load options data');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const {
+        classificationOptions,
+        uomOptions,
+        msicOptions,
+        stateOptions,
+        supplierOptions,
+        currencyOptions,
+        fetchClassifications,
+        fetchUoms,
+        fetchMsic,
+        fetchStates,
+        fetchSuppliers,
+        fetchCurrency
+    } = useModel('options');
 
     const getMsicSelectOptions = () =>
         msicOptions.map((option) => ({
@@ -89,17 +60,28 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
             value: option.code,
         }));
 
+    const getCurrencySelectOptions = () =>
+        currencyOptions.map((option) => ({
+            label: `${option.code} - ${option.currency}`,
+            value: option.code,
+        }));
+
     useEffect(() => {
-        if (!classificationOptions.length || !uomOptions.length || !msicOptions.length || !stateOptions.length || !supplierOptions.length) {
-            fetchAllOptions();
-        }
+        fetchClassifications();
+        fetchUoms();
+        fetchMsic();
+        fetchStates();
+        fetchSuppliers();
+        fetchCurrency();
     }, []);
 
     useEffect(() => {
-        if (isOpen && submitInvoiceRequests.length > 0) {
+        if (isOpen && submitInvoiceRequests.length > 0 && !manual) {
             form.setFieldsValue({ invoices: submitInvoiceRequests });
+        } else if (manual) {
+            form.setFieldsValue({ invoices: [{}] });
         }
-    }, [isOpen, submitInvoiceRequests]);
+    }, [isOpen, submitInvoiceRequests, manual]);
 
     const handleSupplierChange = (supplierId: string, invoiceIndex: number) => {
         const supplier = supplierOptions.find(s => s.id === supplierId);
@@ -127,7 +109,10 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
 
     return (
         <DrawerForm
-            title={`Submission Preview (${submitInvoiceRequests.length} Invoice${submitInvoiceRequests.length > 1 ? 's' : ''})`}
+            title={!manual ?
+                `Submission Preview (${submitInvoiceRequests.length} Invoice${submitInvoiceRequests.length > 1 ? 's' : ''})`
+                : "Manual Invoice Submission"
+            }
             open={isOpen}
             initialValues={{
                 invoices: submitInvoiceRequests
@@ -135,6 +120,21 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
             drawerProps={{
                 destroyOnClose: true,
                 onClose: onCancel,
+                extra: manual && (
+                    <Button
+                        onClick={() =>
+                            form.setFieldsValue({
+                                invoices: [
+                                    ...(form.getFieldValue('invoices') || []),
+                                    {
+                                    },
+                                ],
+                            })
+                        }
+                    >
+                        + Add Invoice
+                    </Button>
+                ),
             }}
             form={form}
             width="90%"
@@ -179,7 +179,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                     }}
                 >
                     <Form.List name="invoices">
-                        {(invoiceFields) => (
+                        {(invoiceFields, { add, remove }) => (
                             <>
                                 {invoiceFields.map(({ name, key }, index) => (
                                     <div id={`invoice-${index}`} key={key} style={{ scrollMarginTop: 24 }}>
@@ -194,22 +194,39 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                 borderStyle: errorCards.includes(index) ? 'solid' : undefined,
                                             }}
                                             bordered
+                                            extra={
+                                                manual && <a
+                                                    onClick={() => remove(name)}
+                                                    style={{ color: 'red' }}
+                                                >
+                                                    <DeleteOutlined />
+                                                </a>
+                                            }
                                         >
                                             <Divider orientation="left" orientationMargin="0">Invoice Info</Divider>
                                             <ProFormGroup>
                                                 <Row gutter={16}>
-                                                    <Col xs={24} sm={12} md={8}><ProFormText name={[name, 'irn']} label="Invoice Number" disabled /></Col>
+                                                    <Col xs={24} sm={12} md={8}><ProFormText name={[name, 'irn']} label="Invoice Number" disabled={!manual} /></Col>
                                                     <Col xs={24} sm={12} md={8}>
                                                         <ProFormSelect
                                                             name={[name, 'invoiceTypeCode']}
                                                             label="Type Code"
                                                             options={getInvoiceTypeOptions()}
                                                             placeholder="Select Type Code"
-                                                            disabled
+                                                            disabled={!manual}
                                                         />
                                                     </Col>
 
-                                                    <Col xs={24} sm={12} md={8}><ProFormText name={[name, 'currencyCode']} label="Currency" disabled /></Col>
+                                                    <Col xs={24} sm={12} md={8}>
+                                                        <ProFormSelect
+                                                            name={[name, 'currencyCode']}
+                                                            label="Currency"
+                                                            options={getCurrencySelectOptions()}
+                                                            placeholder="Select Currency Code"
+                                                            disabled={!manual}
+                                                            showSearch
+                                                        />
+                                                    </Col>
                                                 </Row>
                                             </ProFormGroup>
 
@@ -595,8 +612,20 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
 
                                             <Divider orientation="left" orientationMargin="0">Line Items</Divider>
                                             <Form.List name={[name, 'itemList']}>
-                                                {(itemFields) => {
+                                                {(itemFields, { add, remove }) => {
                                                     const columns = [
+                                                        {
+                                                            title: 'Id',
+                                                            dataIndex: 'id',
+                                                            hideInTable: true,
+                                                            render: (_: any, __: any, index: number) => (
+                                                                <ProFormText
+                                                                    name={[index, 'id']}
+                                                                    initialValue={`${index + 1}`}
+                                                                    disabled
+                                                                />
+                                                            ),
+                                                        },
                                                         {
                                                             title: 'Classification',
                                                             dataIndex: 'classificationCode',
@@ -606,9 +635,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     placeholder="Select"
                                                                     options={classificationOptions}
                                                                     showSearch
-                                                                    rules={[
-                                                                        { required: true, message: 'Classification Code is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Classification Code is required' }]}
                                                                     fieldProps={{
                                                                         style: { width: '100%' },
                                                                         getPopupContainer: () => document.body,
@@ -624,9 +651,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                 <ProFormText
                                                                     name={[index, 'description']}
                                                                     placeholder="Description"
-                                                                    rules={[
-                                                                        { required: true, message: 'Description is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Description is required' }]}
                                                                     noStyle
                                                                 />
                                                             ),
@@ -639,9 +664,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     name={[index, 'qty']}
                                                                     placeholder="Qty"
                                                                     min={0}
-                                                                    rules={[
-                                                                        { required: true, message: 'Quantity is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Quantity is required' }]}
                                                                     noStyle
                                                                 />
                                                             ),
@@ -655,9 +678,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     placeholder="Select"
                                                                     options={uomOptions}
                                                                     showSearch
-                                                                    rules={[
-                                                                        { required: true, message: 'Unit is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Unit is required' }]}
                                                                     fieldProps={{
                                                                         style: { width: '100%' },
                                                                         getPopupContainer: () => document.body,
@@ -674,9 +695,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     name={[index, 'unitPrice']}
                                                                     placeholder="Unit Price"
                                                                     min={0}
-                                                                    rules={[
-                                                                        { required: true, message: 'Unit Price is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Unit Price is required' }]}
                                                                     noStyle
                                                                 />
                                                             ),
@@ -689,9 +708,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     name={[index, 'subtotal']}
                                                                     placeholder="Subtotal"
                                                                     min={0}
-                                                                    rules={[
-                                                                        { required: true, message: 'Subtotal is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Subtotal is required' }]}
                                                                     noStyle
                                                                 />
                                                             ),
@@ -704,9 +721,7 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     name={[index, 'taxAmount']}
                                                                     placeholder="Tax Amount"
                                                                     min={0}
-                                                                    rules={[
-                                                                        { required: true, message: 'Tax Amount is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Tax Amount is required' }]}
                                                                     noStyle
                                                                 />
                                                             ),
@@ -719,28 +734,61 @@ const PreviewForm: React.FC<PreviewFormProps> = ({
                                                                     name={[index, 'taxableAmount']}
                                                                     placeholder="Taxable Amount"
                                                                     min={0}
-                                                                    rules={[
-                                                                        { required: true, message: 'Taxable Amount is required' },
-                                                                    ]}
+                                                                    rules={[{ required: true, message: 'Taxable Amount is required' }]}
                                                                     noStyle
                                                                 />
+                                                            ),
+                                                        },
+                                                        {
+                                                            title: 'Action',
+                                                            dataIndex: 'action',
+                                                            width: 80,
+                                                            align: 'center' as const,
+                                                            render: (_: any, __: any, index: number) => (
+                                                                <a
+                                                                    onClick={() => remove(name)}
+                                                                    style={{ color: 'red' }}
+                                                                >
+                                                                    <DeleteOutlined />
+                                                                </a>
                                                             ),
                                                         },
                                                     ];
 
                                                     return (
-                                                        <Table
-                                                            size="middle"
-                                                            rowKey="key"
-                                                            columns={columns}
-                                                            dataSource={itemFields.map((_, index) => ({ key: index }))}
-                                                            pagination={false}
-                                                            bordered
-                                                            scroll={{ x: 'max-content' }}
-                                                        />
+                                                        <>
+                                                            <Table
+                                                                size="middle"
+                                                                rowKey="key"
+                                                                columns={columns}
+                                                                dataSource={itemFields.map((_, index) => ({ key: index }))}
+                                                                pagination={false}
+                                                                bordered
+                                                                scroll={{ x: 'max-content' }}
+                                                            />
+                                                            <div style={{ marginTop: 8, textAlign: 'right' }}>
+                                                                <Button type='primary'
+                                                                    onClick={() =>
+                                                                        add({
+                                                                            classificationCode: undefined,
+                                                                            description: '',
+                                                                            qty: 0,
+                                                                            unit: undefined,
+                                                                            unitPrice: 0,
+                                                                            subtotal: 0,
+                                                                            taxAmount: 0,
+                                                                            taxableAmount: 0,
+                                                                        })
+                                                                    }
+                                                                >
+                                                                    + Add Item
+                                                                </Button>
+                                                            </div>
+                                                        </>
                                                     );
                                                 }}
                                             </Form.List>
+
 
                                             <Row gutter={16} style={{ marginTop: '16px' }}>
                                                 <Col xs={24} sm={12} md={4}>

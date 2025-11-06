@@ -1,4 +1,4 @@
-import { getInvoiceTypes, submitInvoice } from '@/services/ant-design-pro/invoiceService';
+import { submitInvoice } from '@/services/ant-design-pro/invoiceService';
 import type { ActionType } from '@ant-design/pro-components';
 import { FooterToolbar, PageContainer, ProTable } from '@ant-design/pro-components';
 import { useModel } from '@umijs/max';
@@ -23,33 +23,34 @@ interface TableData {
   total: number;
 }
 
-interface InvoiceType {
-  code: string;
-  description: string;
-}
-
 const InvoiceSubmission: React.FC = () => {
   const [showDetail, setShowDetail] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<InvoiceData | undefined>();
   const [selectedRowsState, setSelectedRows] = useState<InvoiceData[]>([]);
   const [tableData, setTableData] = useState<TableData>({ data: [], success: false, total: 0 });
-  const [invoiceType, setInvoiceType] = useState<InvoiceType[]>([]);
+
   const [selectedInvoiceType, setSelectedInvoiceType] = useState<string>('01');
   const actionRef = useRef<ActionType>();
   const [loading, setLoading] = useState<boolean>(false);
   const [showPreview, setShowPreview] = useState<boolean>(false);
   const [previewPayload, setPreviewPayload] = useState<API.SubmitInvoiceRequest[]>([]);
+  const [manualSubmission, setManualSubmission] = useState<boolean>(false);
 
   const { initialState } = useModel('@@initialState');
   const { currentUser } = initialState || {};
   const email = currentUser?.email ?? '';
   const [profileData, setProfileData] = useState<API.ProfileItem>();
+  const { invoiceTypeOptions, fetchInvoiceTypeOptions } = useModel('options');
 
   useEffect(() => {
     if (!profileData && email) {
       fetchUserProfile(email, setProfileData, setLoading);
     }
   }, [email]);
+
+  useEffect(() => {
+    fetchInvoiceTypeOptions();
+  }, []);
 
   const handleInvoiceSubmission = async (records: InvoiceData | InvoiceData[]) => {
     if (!profileData?.tin) {
@@ -111,12 +112,13 @@ const InvoiceSubmission: React.FC = () => {
             }
             setShowPreview(false);
             setSelectedRows([]);
+            setManualSubmission(false);
             actionRef.current?.reload();
           } else {
             throw new Error('Submission failed');
           }
-        } catch {
-          message.error('Failed to submit the invoice.');
+        } catch (err: any) {
+          message.error(err?.response?.data.message ?? 'Failed to submit the invoice.');
         }
       },
     });
@@ -133,12 +135,6 @@ const InvoiceSubmission: React.FC = () => {
     const loadInitialData = async () => {
       try {
         setTableData({ data: [], success: true, total: 0 });
-        const invoiceTypeOptions = await getInvoiceTypes();
-        setInvoiceType(
-          invoiceTypeOptions.data.data.filter(
-            (type: { description: string; }) => !type.description.toLowerCase().includes('refund'),
-          ),
-        );
         await fetchDataBasedOnInvoiceType({
           type: selectedInvoiceType,
           setLoading,
@@ -153,7 +149,18 @@ const InvoiceSubmission: React.FC = () => {
   }, [selectedInvoiceType]);
 
   return (
-    <PageContainer>
+    <PageContainer
+      header={{
+        extra: [
+          <Button key="1"
+            type="primary"
+            onClick={() => {
+              setShowPreview(true);
+              setManualSubmission(true);
+            }}>
+            Manual Submission
+          </Button>]
+      }}>
       <ProTable<InvoiceData>
         actionRef={actionRef}
         rowKey={(record) => {
@@ -206,7 +213,7 @@ const InvoiceSubmission: React.FC = () => {
               value={selectedInvoiceType}
               onChange={(value) => setSelectedInvoiceType(value)}
               style={{ width: 180 }}
-              options={invoiceType
+              options={invoiceTypeOptions
                 .filter((data) => !data.description.toLowerCase().includes('refund')) // Exclude refund types
                 .map((data) => ({
                   value: data.code,
@@ -241,8 +248,10 @@ const InvoiceSubmission: React.FC = () => {
         onCancel={() => {
           setShowPreview(false)
           setTimeout(() => setPreviewPayload([]), 300);
+          setTimeout(() => setManualSubmission(false), 300);
         }}
         onFinish={confirmSubmission}
+        manual={manualSubmission}
       />
     </PageContainer>
   );

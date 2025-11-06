@@ -12,6 +12,14 @@ namespace invoice_admin_web.Controllers
         private readonly HttpClient _httpClient;
         private readonly string _baseUrl;
 
+        private void AttachAccessToken(HttpRequestMessage requestMessage)
+        {
+            if (Request.Cookies.TryGetValue("AccessToken", out var token) && !string.IsNullOrWhiteSpace(token))
+            {
+                requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+        }
+
         public GenericController(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
             _httpClient = httpClientFactory.CreateClient();
@@ -33,12 +41,7 @@ namespace invoice_admin_web.Controllers
             try
             {
                 var requestMessage = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-
-                if (Request.Headers.TryGetValue("Authorization", out var authValue))
-                {
-                    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
-                        authValue.ToString().Replace("Bearer ", ""));
-                }
+                AttachAccessToken(requestMessage);
 
                 var response = await _httpClient.SendAsync(requestMessage);
 
@@ -70,12 +73,7 @@ namespace invoice_admin_web.Controllers
                 {
                     Content = content
                 };
-
-                if (Request.Headers.TryGetValue("Authorization", out var authValue))
-                {
-                    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
-                        authValue.ToString().Replace("Bearer ", ""));
-                }
+                AttachAccessToken(requestMessage);
 
                 if (Request.Headers.TryGetValue("tenant", out var tenantValue))
                 {
@@ -110,12 +108,7 @@ namespace invoice_admin_web.Controllers
                 {
                     Content = content
                 };
-
-                if (Request.Headers.TryGetValue("Authorization", out var authValue))
-                {
-                    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
-                        authValue.ToString().Replace("Bearer ", ""));
-                }
+                AttachAccessToken(requestMessage);
 
                 var response = await _httpClient.SendAsync(requestMessage);
 
@@ -146,12 +139,7 @@ namespace invoice_admin_web.Controllers
             try
             {
                 var requestMessage = new HttpRequestMessage(HttpMethod.Delete, targetUrl);
-
-                if (Request.Headers.TryGetValue("Authorization", out var authValue))
-                {
-                    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
-                        authValue.ToString().Replace("Bearer ", ""));
-                }
+                AttachAccessToken(requestMessage);
 
                 var response = await _httpClient.SendAsync(requestMessage);
 
@@ -178,12 +166,7 @@ namespace invoice_admin_web.Controllers
             try
             {
                 var requestMessage = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-
-                if (Request.Headers.TryGetValue("Authorization", out var authValue))
-                {
-                    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
-                        authValue.ToString().Replace("Bearer ", ""));
-                }
+                AttachAccessToken(requestMessage);
 
                 var response = await _httpClient.SendAsync(requestMessage);
 

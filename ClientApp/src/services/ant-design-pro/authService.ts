@@ -45,10 +45,9 @@ export async function forgotPassword(body: { email: string }, options?: { [key: 
 }
 
 export async function refreshJWToken(
-  body: API.RefreshTokenRequest,
   options?: { [key: string]: any },
 ) {
-  return httpClient.post('/token/refresh', body, {
+  return httpClient.post('/token/refresh', null, {
     headers: {
       tenant: 'root',
       ...(options?.headers || {}),

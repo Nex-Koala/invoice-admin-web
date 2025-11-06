@@ -6,8 +6,8 @@ import { refreshJWToken } from './ant-design-pro/authService';
 // Track if we're already refreshing to prevent multiple concurrent refreshes
 let isRefreshing = false;
 // Queue for requests waiting for token refresh
-let failedRequestsQueue: Array<{
-  resolve: (token: string) => void;
+let failedQueue: Array<{
+  resolve: Function;
   reject: (error: AxiosError) => void;
 }> = [];
 
@@ -18,28 +18,19 @@ const httpClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
+const processQueue = (error: any) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve();
+  });
+  failedQueue = [];
+};
+
 // Request interceptor
-httpClient.interceptors.request.use(
-  (config) => {
-    // Retrieve token from local storage
-    const currentUser = localStorage.getItem('currentUser');
-    if (currentUser) {
-      const parseUser = JSON.parse(currentUser);
-      const token = parseUser?.token;
-      if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-    return config;
-  },
-  (error) => {
-    // Handle request errors
-    message.error('Error in request. Please try again.');
-    return Promise.reject(error);
-  },
-);
+httpClient.interceptors.request.use(config => config, error => Promise.reject(error));
 
 // Response interceptor
 httpClient.interceptors.response.use(
@@ -61,59 +52,26 @@ httpClient.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      originalRequest._retry = true; // Mark this request as retried
-
-      // If we're already refreshing, add to queue
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
-          failedRequestsQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers = originalRequest.headers ?? {};
-            originalRequest.headers['Authorization'] = `Bearer ${token}`;
-            return axios(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
+          failedQueue.push({
+            resolve: () => resolve(httpClient(originalRequest)),
+            reject,
+          });
+        });
       }
 
+      originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        const currentUser = localStorage.getItem('currentUser');
-        if (!currentUser) {
-          throw new Error('No current user found');
-        }
 
-        const parseUser: API.CurrentUser = JSON.parse(currentUser);
-        const refreshToken = parseUser.refreshToken;
-        const jwToken = parseUser.token;
-        if (!refreshToken) {
-          throw new Error('No refresh token found');
-        }
+        await refreshJWToken();
+        processQueue(null);
+        return httpClient(originalRequest);
 
-        const refreshResponse = await refreshJWToken({ token: jwToken, refreshToken });
-        const { token, refreshToken: newRefreshToken } = refreshResponse.data.data;
-
-        // Update stored tokens
-        parseUser.token = token;
-        parseUser.refreshToken = newRefreshToken;
-        localStorage.setItem('currentUser', JSON.stringify(parseUser));
-
-        // Update Authorization header
-        httpClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-        // Process queued requests
-        failedRequestsQueue.forEach(({ resolve }) => resolve(token));
-        failedRequestsQueue = [];
-
-        // Retry original request
-        originalRequest.headers = originalRequest.headers ?? {};
-        originalRequest.headers['Authorization'] = `Bearer ${token}`;
-        return axios(originalRequest);
       } catch (refreshError: any) {
-        // Clear queue and user data if refresh fails
-        failedRequestsQueue.forEach(({ reject }) => reject(refreshError));
-        failedRequestsQueue = [];
+        processQueue(refreshError);
 
         localStorage.removeItem('currentUser');
         message.error('Session expired. Please log in again.');

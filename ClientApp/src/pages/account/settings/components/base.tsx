@@ -7,39 +7,29 @@ import { useModel } from '@umijs/max';
 import { Button, Card, Col, Form, message, Row } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 
-
 const BaseView: React.FC = () => {
   const { initialState, setInitialState } = useModel('@@initialState');
   const userEmail = initialState?.currentUser?.email;
 
   const [form] = Form.useForm();
-  const [msicOptions, setMsicOptions] = useState<API.MSICOption[]>([]);
-  const [msicLoading, setMsicLoading] = useState(false);
-  const [stateOptions, setStateOptions] = useState<API.StateOption[]>([]);
-  const [stateLoading, setStateLoading] = useState(false);
   const [profileData, setProfileData] = useState<API.ProfileItem>();
   const [profileLoading, setProfileLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
-
-  const fetchAllData = async () => {
-    setMsicLoading(true);
-    setStateLoading(true);
+  const {
+    msicOptions,
+    stateOptions,
+    fetchMsic,
+    fetchStates,
+  } = useModel('options');
+  const fetchProfileData = async () => {
     setProfileLoading(true);
     try {
-      const [msicRes, stateRes, profileRes] = await Promise.all([
-        getMsicCodes(),
-        getStateCodes(),
-        getUserProfile({ email: userEmail! }),
-      ]);
-      setMsicOptions(msicRes.data.data);
-      setStateOptions(stateRes.data.data);
+      const profileRes = await getUserProfile({ email: userEmail! });
       setProfileData(profileRes.data.data);
     } catch (error) {
       message.error('Failed to load profile data');
     } finally {
-      setMsicLoading(false);
-      setStateLoading(false);
       setProfileLoading(false);
     }
   };
@@ -60,7 +50,9 @@ const BaseView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAllData();
+    fetchProfileData();
+    fetchMsic();
+    fetchStates();
   }, []);
 
   const handleFinish = async (values: any) => {
@@ -70,7 +62,7 @@ const BaseView: React.FC = () => {
       if (response.data?.succeeded) {
         message.success('Successfully updated profile');
         setIsEditMode(false);
-        await fetchAllData();
+        await fetchProfileData();
         await refreshProfileComplete();
       } else {
         message.error('Failed to update profile');
@@ -109,7 +101,7 @@ const BaseView: React.FC = () => {
 
   return (
     <div style={{ padding: 20 }}>
-      {!profileLoading && !stateLoading && (
+      {!profileLoading && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
             <h2 style={{ margin: 0 }}>Profile</h2>
@@ -288,7 +280,6 @@ const BaseView: React.FC = () => {
                     label="MSIC Code"
                     tooltip="Malaysia Industrial Classification"
                     options={getMsicSelectOptions()}
-                    loading={msicLoading}
                     disabled={!isEditMode}
                     showSearch
                     rules={[{ required: true, message: 'Please select MSIC code!' }]}
@@ -352,7 +343,6 @@ const BaseView: React.FC = () => {
                     name="state"
                     label="State"
                     options={getStateSelectOptions()}
-                    loading={stateLoading}
                     showSearch
                     disabled={!isEditMode}
                     rules={[{ required: true, message: 'Select state!' }]}
