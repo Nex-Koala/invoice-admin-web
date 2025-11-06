@@ -1,34 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { message } from 'antd';
 import { getClassifications } from '@/services/ant-design-pro/classificationService';
-import { getMsicCodes, getStateCodes } from '@/services/ant-design-pro/invoiceService';
+import {
+  getCurrencyCodes,
+  getInvoiceTypes,
+  getMsicCodes,
+  getStateCodes,
+} from '@/services/ant-design-pro/invoiceService';
 import { getSuppliers } from '@/services/ant-design-pro/supplierService';
 import { getUoms } from '@/services/ant-design-pro/uomService';
 
-export interface OptionsState {
-  classificationOptions: [];
-  uomOptions: [];
-  msicOptions: API.MSICOption[];
-  stateOptions: API.StateOption[];
-  supplierOptions: API.DocumentSupplier[];
-}
-
-export function useOptionsModel() {
-  const [classificationOptions, setClassificationOptions] = useState<[]>([]);
-  const [uomOptions, setUomOptions] = useState<[]>([]);
+export default function useOptionsModel() {
+  const [classificationOptions, setClassificationOptions] = useState<any[]>([]);
+  const [uomOptions, setUomOptions] = useState<any[]>([]);
   const [msicOptions, setMsicOptions] = useState<API.MSICOption[]>([]);
   const [stateOptions, setStateOptions] = useState<API.StateOption[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<API.DocumentSupplier[]>([]);
+  const [currencyOptions, setCurrencyOptions] = useState<API.CurrencyOption[]>([]);
+  const [invoiceTypeOptions, setInvoiceTypeOptions] = useState<API.InvoiceType[]>([]);
 
   const fetchClassifications = async () => {
-    if (classificationOptions.length) return; // already fetched
+    if (classificationOptions.length) return;
     try {
       const res = await getClassifications({});
       setClassificationOptions(
         res?.data?.data?.map(({ code, description }: API.LocalClassification) => ({
           value: code,
           label: `${code} - ${description}`,
-        })) ?? []
+        })) ?? [],
       );
     } catch {
       message.error('Failed to load classification options');
@@ -43,7 +42,7 @@ export function useOptionsModel() {
         res?.data?.data?.map(({ code, description }: API.SellerUOM) => ({
           value: code,
           label: `${code} - ${description}`,
-        })) ?? []
+        })) ?? [],
       );
     } catch {
       message.error('Failed to load UOM options');
@@ -61,8 +60,6 @@ export function useOptionsModel() {
   };
 
   const fetchStates = async () => {
-    console.log(stateOptions.length)
-    console.log(stateOptions)
     if (stateOptions.length) return;
     try {
       const res = await getStateCodes();
@@ -82,16 +79,45 @@ export function useOptionsModel() {
     }
   };
 
+  const fetchCurrency = async () => {
+    if (currencyOptions.length) return;
+    try {
+      const res = await getCurrencyCodes();
+      setCurrencyOptions(res?.data?.data ?? []);
+    } catch {
+      message.error('Failed to load currency options');
+    }
+  };
+
+  const fetchInvoiceTypeOptions = async () => {
+    if (invoiceTypeOptions.length) return;
+    try {
+      const res = await getInvoiceTypes();
+      setInvoiceTypeOptions(
+        res.data.data.filter(
+          (type: { description: string }) =>
+            !type.description.toLowerCase().includes('refund'),
+        ) ?? [],
+      );
+    } catch {
+      message.error('Failed to load invoice types');
+    }
+  };
+
   return {
     classificationOptions,
     uomOptions,
     msicOptions,
     stateOptions,
     supplierOptions,
+    currencyOptions,
+    invoiceTypeOptions,
     fetchClassifications,
     fetchUoms,
     fetchMsic,
     fetchStates,
     fetchSuppliers,
+    fetchCurrency,
+    fetchInvoiceTypeOptions,
   };
 }

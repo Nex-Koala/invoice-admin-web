@@ -371,7 +371,7 @@ declare namespace API {
 
   type InvoiceType = {
     code: string;
-    label: string;
+    description: string;
   };
 
   type SellerUOM = {
@@ -415,5 +415,10 @@ declare namespace API {
   type StateOption = {
     code: string;
     state: string;
+  }
+
+  type CurrencyOption = {
+    code: string;
+    currency: string;
   }
 }

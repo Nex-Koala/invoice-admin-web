@@ -1,5 +1,4 @@
 import { getCountryCodeOptions } from '@/helpers/countryCodeConverter';
-import { useOptionsModel } from '@/models/useOptionsModel';
 import { getMsicCodes, getStateCodes } from '@/services/ant-design-pro/invoiceService';
 import { getUserProfile, updateUserProfile } from '@/services/ant-design-pro/profileService';
 import { EditOutlined } from '@ant-design/icons';
@@ -22,7 +21,7 @@ const BaseView: React.FC = () => {
     stateOptions,
     fetchMsic,
     fetchStates,
-  } = useOptionsModel();
+  } = useModel('options');
   const fetchProfileData = async () => {
     setProfileLoading(true);
     try {
