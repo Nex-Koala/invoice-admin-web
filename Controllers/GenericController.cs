@@ -14,7 +14,7 @@ namespace invoice_admin_web.Controllers
 
         private void AttachAccessToken(HttpRequestMessage requestMessage)
         {
-            if (Request.Cookies.TryGetValue("AccessToken", out var token) && !string.IsNullOrWhiteSpace(token))
+            if (Request.Cookies.TryGetValue("access_token", out var token) && !string.IsNullOrWhiteSpace(token))
             {
                 requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             }
